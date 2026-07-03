@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Route, Routes, Navigate } from "react-router-dom";
+import { BrowserRouter, Route, Routes, Navigate, useLocation } from "react-router-dom";
 import { ThemeProvider } from "next-themes";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
@@ -26,39 +26,49 @@ import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
 
+// Keying ErrorBoundary by pathname forces a full remount whenever the route
+// changes (including browser Back/Forward), which clears any stuck error
+// state and re-runs all data fetching from scratch.
+const AppRoutes = () => {
+  const location = useLocation();
+  return (
+    <ErrorBoundary key={location.pathname}>
+      <Routes>
+        <Route path="/login" element={<LoginPage />} />
+        <Route path="/invite" element={<InvitePage />} />
+        <Route path="/" element={<Navigate to="/dashboard" replace />} />
+        <Route element={<DashboardLayout />}>
+          <Route path="/dashboard" element={<DashboardPage />} />
+          <Route path="/tasks" element={<TasksPage />} />
+          <Route path="/messages" element={<MessagesPage />} />
+          <Route path="/team" element={<TeamPage />} />
+          <Route path="/performance" element={<PerformancePage />} />
+          <Route path="/scheduler" element={<SchedulerPage />} />
+          <Route path="/clients" element={<ClientsPage />} />
+          <Route path="/projects" element={<ProjectsPage />} />
+          <Route path="/projects/:id" element={<ProjectDetailPage />} />
+          <Route path="/tasks/:taskId/documents" element={<TaskDocumentsPage />} />
+          <Route path="/settings" element={<SettingsPage />} />
+          <Route path="/sessions" element={<SessionManagementPage />} />
+          <Route path="/active-users" element={<ActiveUsersPage />} />
+        </Route>
+        <Route path="*" element={<NotFound />} />
+      </Routes>
+    </ErrorBoundary>
+  );
+};
+
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <ThemeProvider attribute="class" defaultTheme="light" enableSystem>
       <TooltipProvider>
-        <ErrorBoundary>
-          <Toaster />
-          <Sonner />
-          <BrowserRouter>
-            <AuthProvider>
-              <Routes>
-                <Route path="/login" element={<LoginPage />} />
-                <Route path="/invite" element={<InvitePage />} />
-                <Route path="/" element={<Navigate to="/dashboard" replace />} />
-                <Route element={<DashboardLayout />}>
-                  <Route path="/dashboard" element={<DashboardPage />} />
-                  <Route path="/tasks" element={<TasksPage />} />
-                  <Route path="/messages" element={<MessagesPage />} />
-                  <Route path="/team" element={<TeamPage />} />
-                  <Route path="/performance" element={<PerformancePage />} />
-                  <Route path="/scheduler" element={<SchedulerPage />} />
-                  <Route path="/clients" element={<ClientsPage />} />
-                  <Route path="/projects" element={<ProjectsPage />} />
-                  <Route path="/projects/:id" element={<ProjectDetailPage />} />
-                  <Route path="/tasks/:taskId/documents" element={<TaskDocumentsPage />} />
-                  <Route path="/settings" element={<SettingsPage />} />
-                  <Route path="/sessions" element={<SessionManagementPage />} />
-                  <Route path="/active-users" element={<ActiveUsersPage />} />
-                </Route>
-                <Route path="*" element={<NotFound />} />
-              </Routes>
-            </AuthProvider>
-          </BrowserRouter>
-        </ErrorBoundary>
+        <Toaster />
+        <Sonner />
+        <BrowserRouter>
+          <AuthProvider>
+            <AppRoutes />
+          </AuthProvider>
+        </BrowserRouter>
       </TooltipProvider>
     </ThemeProvider>
   </QueryClientProvider>
