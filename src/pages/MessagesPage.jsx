@@ -508,69 +508,80 @@ const MessagesPage = () => {
   };
 
   const createChannel = async (e) => {
-    e.preventDefault();
-    if (!user || !channelName.trim()) return;
-    let encryptionKey = null;
-    if (enableEncryption) encryptionKey = await generateChannelKey();
-    const { data, error } = await supabase.from("channels").insert({ name: channelName.trim(), description: channelDescription.trim() || null, created_by: user.id, encryption_key: encryptionKey }).select().single();
-    if (error) {
-      toast.error(error.message);
-      return;
-    }
-    await supabase.from("channel_members").insert({ channel_id: data.id, user_id: user.id });
-    setChannelName("");
-    setChannelDescription("");
-    setEnableEncryption(true);
-    setCreateOpen(false);
-    fetchChannels();
-    toast.success(`Channel created${encryptionKey ? " with E2E encryption 🔒" : ""}`);
-  };
+  e.preventDefault();
+  if (!user || !channelName.trim()) return;
+  let encryptionKey = null;
+  if (enableEncryption) encryptionKey = await generateChannelKey();
+  const { data, error } = await supabase.from("channels").insert({ name: channelName.trim(), description: channelDescription.trim() || null, created_by: user.id, encryption_key: encryptionKey }).select().single();
+  if (error) {
+    toast.error(error.message);
+    return;
+  }
+  const { error: memberError } = await supabase.from("channel_members").insert({ channel_id: data.id, user_id: user.id });
+  if (memberError) {
+    // Roll back the orphaned channel so it doesn't sit there with no members
+    await supabase.from("channels").delete().eq("id", data.id);
+    toast.error(`Couldn't finish creating the channel: ${memberError.message}`);
+    return;
+  }
+  setChannelName("");
+  setChannelDescription("");
+  setEnableEncryption(true);
+  setCreateOpen(false);
+  fetchChannels();
+  toast.success(`Channel created${encryptionKey ? " with E2E encryption 🔒" : ""}`);
+};
 
   const createDM = async (targetUserId) => {
-    if (!user) return;
-    const { data: myChannels } = await supabase.from("channel_members").select("channel_id").eq("user_id", user.id);
-    const { data: theirChannels } = await supabase.from("channel_members").select("channel_id").eq("user_id", targetUserId);
-    if (myChannels && theirChannels) {
-      const myIds = new Set(myChannels.map((c) => c.channel_id));
-      const commonIds = theirChannels.filter((c) => myIds.has(c.channel_id)).map((c) => c.channel_id);
-      if (commonIds.length > 0) {
-        const { data: existingDM } = await supabase.from("channels").select("*").in("id", commonIds).eq("is_direct", true).limit(1);
-        if (existingDM && existingDM.length > 0) {
-          setActiveChannel(existingDM[0]);
-          setDmDialogOpen(false);
-          setDmSearch("");
-          setShowMobileSidebar(false);
-          return;
-        }
+  if (!user) return;
+  const { data: myChannels } = await supabase.from("channel_members").select("channel_id").eq("user_id", user.id);
+  const { data: theirChannels } = await supabase.from("channel_members").select("channel_id").eq("user_id", targetUserId);
+  if (myChannels && theirChannels) {
+    const myIds = new Set(myChannels.map((c) => c.channel_id));
+    const commonIds = theirChannels.filter((c) => myIds.has(c.channel_id)).map((c) => c.channel_id);
+    if (commonIds.length > 0) {
+      const { data: existingDM } = await supabase.from("channels").select("*").in("id", commonIds).eq("is_direct", true).limit(1);
+      if (existingDM && existingDM.length > 0) {
+        setActiveChannel(existingDM[0]);
+        setDmDialogOpen(false);
+        setDmSearch("");
+        setShowMobileSidebar(false);
+        return;
       }
     }
-    const targetName = allProfiles.find((p) => p.id === targetUserId)?.full_name || "Unknown";
-    const encryptionKey = await generateChannelKey();
-    const { data, error } = await supabase
-      .from("channels")
-      .insert({
-        name: `DM: ${profile?.full_name || "You"} & ${targetName}`,
-        is_direct: true,
-        created_by: user.id,
-        encryption_key: encryptionKey,
-      })
-      .select()
-      .single();
-    if (error) {
-      toast.error(error.message);
-      return;
-    }
-    await supabase.from("channel_members").insert([
-      { channel_id: data.id, user_id: user.id },
-      { channel_id: data.id, user_id: targetUserId },
-    ]);
-    setDmDialogOpen(false);
-    setDmSearch("");
-    fetchChannels();
-    setActiveChannel(data);
-    setShowMobileSidebar(false);
-    toast.success("Direct message created");
-  };
+  }
+  const targetName = allProfiles.find((p) => p.id === targetUserId)?.full_name || "Unknown";
+  const encryptionKey = await generateChannelKey();
+  const { data, error } = await supabase
+    .from("channels")
+    .insert({
+      name: `DM: ${profile?.full_name || "You"} & ${targetName}`,
+      is_direct: true,
+      created_by: user.id,
+      encryption_key: encryptionKey,
+    })
+    .select()
+    .single();
+  if (error) {
+    toast.error(error.message);
+    return;
+  }
+  const { error: memberError } = await supabase.from("channel_members").insert([
+    { channel_id: data.id, user_id: user.id },
+    { channel_id: data.id, user_id: targetUserId },
+  ]);
+  if (memberError) {
+    await supabase.from("channels").delete().eq("id", data.id);
+    toast.error(`Couldn't start the DM: ${memberError.message}`);
+    return;
+  }
+  setDmDialogOpen(false);
+  setDmSearch("");
+  fetchChannels();
+  setActiveChannel(data);
+  setShowMobileSidebar(false);
+  toast.success("Direct message created");
+};
 
   const profile = allProfiles.find((p) => p.id === user?.id);
 

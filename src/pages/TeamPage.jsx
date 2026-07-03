@@ -325,7 +325,7 @@ const TeamPage = () => {
       if (res.error) toast.error(res.error.message || "Failed");
       else if (res.data?.error) toast.error(res.data.error);
       else {
-        toast.success(`Member "${memberName}" created! A verification email was sent.`);
+        toast.success(`Member "${memberName}" created — they can sign in immediately.`);
         setMemberEmail("");
         setMemberPassword("");
         setMemberName("");
@@ -498,7 +498,7 @@ const TeamPage = () => {
                     <UserPlus className="h-4 w-4" />
                     {addingMember ? "Creating..." : "Create Member Account"}
                   </Button>
-                  <p className="text-xs text-muted-foreground text-center">A verification email will be sent — the member must confirm before they can log in.</p>
+                  <p className="text-xs text-muted-foreground text-center">The member can sign in immediately with these credentials — no email verification required.</p>
                 </div>
               </DialogContent>
             </Dialog>

@@ -127,7 +127,7 @@ const OnboardingPage = () => {
       } else if (res.data?.error) {
         toast.error(res.data.error);
       } else {
-        toast.success(`Member "${memberName}" created. A verification email was sent to ${memberEmail} — they must confirm it before they can log in.`);
+        toast.success(`Member "${memberName}" created — they can sign in immediately with the credentials you set.`);
         setMemberEmail("");
         setMemberPassword("");
         setMemberName("");
