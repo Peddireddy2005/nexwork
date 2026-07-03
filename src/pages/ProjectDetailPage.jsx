@@ -205,7 +205,7 @@ export default function ProjectDetailPage() {
         </TabsList>
 
         <TabsContent value="tasks">
-          <ProjectKanban projectId={project.id} canEdit={canEdit} />
+          <ProjectKanban projectId={project.id} canEdit={canEdit} onProjectChange={load} />
         </TabsContent>
 
         <TabsContent value="activity">
