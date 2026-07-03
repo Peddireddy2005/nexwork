@@ -1,3 +1,32 @@
+import { useEffect, useState } from "react";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
+import { Card, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Textarea } from "@/components/ui/textarea";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Label } from "@/components/ui/label";
+import { Plus, Calendar, AlertTriangle, GripVertical } from "lucide-react";
+import { toast } from "sonner";
+import { TaskDrawer } from "./TaskDrawer";
+
+const COLUMNS = [
+  { id: "todo", label: "To Do" },
+  { id: "in_progress", label: "In Progress" },
+  { id: "review", label: "In Review" },
+  { id: "completed", label: "Completed" },
+];
+
+const priorityClass = {
+  low: "bg-muted text-muted-foreground",
+  medium: "bg-info/10 text-info",
+  high: "bg-warning/10 text-warning",
+  urgent: "bg-destructive/10 text-destructive",
+};
+
 export function ProjectKanban({ projectId, canEdit, onProjectChange }) {
   const { user } = useAuth();
   const [tasks, setTasks] = useState([]);
