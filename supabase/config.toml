@@ -18,12 +18,6 @@ port = 54323
 api_url = "http://127.0.0.1"
 openai_api_key = "env(OPENAI_API_KEY)"
 
-[inbucket]
-enabled = true
-port = 54324
-smtp_port = 54325
-pop3_port = 54326
-
 [storage]
 enabled = true
 file_size_limit = "50MiB"
@@ -46,6 +40,3 @@ enable_confirmations = false
 [auth.sms]
 enable_signup = false
 enable_confirmations = false
-
-[functions]
-verify_jwt = false
