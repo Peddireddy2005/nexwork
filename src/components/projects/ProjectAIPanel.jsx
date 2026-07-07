@@ -13,22 +13,31 @@ export function ProjectAIPanel({ projectId, projectName, serviceTypes, onTasksCr
   const [error, setError] = useState(null);
 
   const run = async (action, body = {}) => {
-    setBusy(action);
-    setError(null);
-    try {
-      const { data, error: err } = await supabase.functions.invoke("ai-project-generator", {
-        body: { action, ...body },
-      });
-      if (err) throw err;
-      return data;
-    } catch (e) {
-      setError(e.message || "AI request failed");
-      toast.error("AI request failed — try again");
-      return null;
-    } finally {
-      setBusy(null);
+  setBusy(action);
+  setError(null);
+  try {
+    const { data, error: err } = await supabase.functions.invoke("ai-project-generator", {
+      body: { action, ...body },
+    });
+    if (err) {
+      let detail = err.message;
+      try {
+        const errBody = await err.context?.json();
+        if (errBody?.error) detail = errBody.error;
+      } catch {
+        // context wasn't JSON — fall back to err.message
+      }
+      throw new Error(detail);
     }
-  };
+    return data;
+  } catch (e) {
+    setError(e.message || "AI request failed");
+    toast.error("AI request failed — try again");
+    return null;
+  } finally {
+    setBusy(null);
+  }
+};
 
   const generateTasks = async () => {
     const data = await run("generate_tasks", {
