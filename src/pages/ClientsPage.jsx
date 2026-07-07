@@ -70,77 +70,121 @@ const ClientsPage = () => {
   };
 
   const saveClient = async () => {
-    if (!name.trim()) return toast.error("Name is required");
-    setSaving(true);
+  if (!name.trim()) return toast.error("Name is required");
+  setSaving(true);
 
-    try {
-      const payload = {
-        name,
-        email: email || null,
-        phone: phone || null,
-        company: company || null,
-        status,
-        notes: notes || null,
-        service_type: serviceType,
-      };
+  try {
+    const payload = {
+      name,
+      email: email || null,
+      phone: phone || null,
+      company: company || null,
+      status,
+      notes: notes || null,
+      service_type: serviceType,
+    };
 
-      if (editingClient) {
-        await supabase.from("clients").update({ ...payload, updated_at: new Date().toISOString() }).eq("id", editingClient.id);
-        toast.success("Client updated");
-      } else {
-        const { data: newClient, error: clientError } = await supabase
-          .from("clients")
-          .insert({ ...payload, created_by: user.id })
-          .select()
-          .single();
+    if (editingClient) {
+      const { error } = await supabase
+        .from("clients")
+        .update({ ...payload, updated_at: new Date().toISOString() })
+        .eq("id", editingClient.id);
+      if (error) throw error;
+      toast.success("Client updated");
+    } else {
+      const { data: newClient, error: clientError } = await supabase
+        .from("clients")
+        .insert({ ...payload, created_by: user.id })
+        .select()
+        .single();
+      if (clientError) throw clientError;
 
-        if (clientError) throw clientError;
+      // Legacy CRM-tab record
+      const { error: cpError } = await supabase.from("client_projects").insert({
+        client_id: newClient.id,
+        name: `${name} - ${serviceType}`,
+        status: "active",
+        start_date: new Date().toISOString().split("T")[0],
+      });
+      if (cpError) console.error("client_projects insert failed:", cpError);
 
-        const { error: projError } = await supabase.from("client_projects").insert({
+      // REAL project — this is what makes it show up under Projects / Dashboard / Kanban
+      const startDate = new Date().toISOString().split("T")[0];
+      const deadline = new Date();
+      deadline.setDate(deadline.getDate() + 30);
+
+      const { data: newProject, error: projError } = await supabase
+        .from("projects")
+        .insert({
+          name: `${name} — ${serviceType}`,
+          description: notes || null,
           client_id: newClient.id,
-          name: `${name} - ${serviceType}`,
+          owner_id: user.id,
           status: "active",
-          start_date: new Date().toISOString().split("T")[0],
+          start_date: startDate,
+          deadline: deadline.toISOString().split("T")[0],
+          service_types: [serviceType],
+          created_by: user.id,
+        })
+        .select()
+        .single();
+
+      if (projError) {
+        toast.error(`Client created, but project setup failed: ${projError.message}`);
+      } else {
+        await supabase.from("project_members").insert({
+          project_id: newProject.id,
+          user_id: user.id,
+          role: "owner",
         });
 
-        if (projError) console.error("Project creation error:", projError);
-
-        if (autoGenerate) {
-          toast.info("Generating tasks with AI...");
-          try {
-            const { data: aiData, error: aiError } = await supabase.functions.invoke("ai-project-generator", {
-              body: {
-                action: "generate_tasks",
-                clientId: newClient.id,
-                clientName: name,
-                serviceType,
-              },
-            });
-            if (aiError) throw aiError;
-            if (aiData?.tasks?.length) {
-              toast.success(`Created client + ${aiData.tasks.length} AI-generated tasks`);
-            } else {
-              toast.success("Client created with project");
-            }
-          } catch (aiErr) {
-            console.error("AI task generation failed:", aiErr);
-            toast.success("Client & project created (AI tasks skipped)");
-          }
-        } else {
-          toast.success("Client & project created");
-        }
+        await supabase.from("activity_logs").insert({
+          user_id: user.id,
+          action: "client_created",
+          entity_type: "client",
+          entity_id: newClient.id,
+          metadata: { name, project_id: newProject.id },
+        });
       }
 
-      setShowCreate(false);
-      resetForm();
-      fetchClients();
-      fetchProjects();
-    } catch (e) {
-      toast.error(e.message || "Failed to save client");
-    } finally {
-      setSaving(false);
+      if (autoGenerate && newProject) {
+        toast.info("Generating tasks with AI...");
+        try {
+          const { data: aiData, error: aiError } = await supabase.functions.invoke("ai-project-generator", {
+            body: {
+              action: "generate_tasks",
+              clientId: newClient.id,
+              clientName: name,
+              serviceType,
+            },
+          });
+          if (aiError) throw aiError;
+          if (aiData?.tasks?.length) {
+            const ids = aiData.tasks.map((t) => t.id);
+            await supabase.from("tasks").update({ project_id: newProject.id }).in("id", ids);
+            toast.success(`Created client + project + ${aiData.tasks.length} AI-generated tasks`);
+          } else {
+            toast.success("Client & project created");
+          }
+        } catch (aiErr) {
+          console.error("AI task generation failed:", aiErr);
+          toast.success("Client & project created (AI tasks skipped)");
+        }
+      } else if (newProject) {
+        toast.success("Client & project created");
+      }
     }
-  };
+
+    setShowCreate(false);
+    resetForm();
+    fetchClients();
+    fetchProjects();
+  } catch (e) {
+    toast.error(e.message || "Failed to save client");
+  } finally {
+    setSaving(false);
+  }
+};
 
   const deleteClient = async (id) => {
     if (role !== "admin") {
