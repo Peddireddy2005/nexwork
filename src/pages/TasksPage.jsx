@@ -86,13 +86,14 @@ const TasksPage = () => {
   };
 
   const fetchAttachments = async (taskId) => {
-    const { data } = await supabase.storage.from("task-attachments").list(taskId);
-    setAttachments(
-      data?.map((f) => {
-        const { data: urlData } = supabase.storage.from("task-attachments").getPublicUrl(`${taskId}/${f.name}`);
-        return urlData.publicUrl;
-      }) || []
+    const { data } = await supabase.from("task_attachments").select("*").eq("task_id", taskId).order("created_at", { ascending: false });
+    const resolved = await Promise.all(
+      (data || []).map(async (a) => {
+        const { data: signed } = await supabase.storage.from("task-attachments").createSignedUrl(a.file_url, 3600);
+        return { id: a.id, name: a.file_name, url: signed?.signedUrl || "" };
+      })
     );
+    setAttachments(resolved);
   };
 
   const openDetail = (task) => {
@@ -262,8 +263,21 @@ const TasksPage = () => {
     setUploading(true);
     const file = e.target.files[0];
     const path = `${detailTask.id}/${Date.now()}_${file.name}`;
-    const { error } = await supabase.storage.from("task-attachments").upload(path, file);
-    if (error) toast.error(error.message);
+    const { error: upErr } = await supabase.storage.from("task-attachments").upload(path, file);
+    if (upErr) {
+      toast.error(upErr.message);
+      setUploading(false);
+      return;
+    }
+    const { error: insErr } = await supabase.from("task_attachments").insert({
+      task_id: detailTask.id,
+      file_name: file.name,
+      file_url: path,
+      file_type: file.type || null,
+      file_size: file.size,
+      uploaded_by: user.id,
+    });
+    if (insErr) toast.error(insErr.message);
     else {
       toast.success("File uploaded");
       fetchAttachments(detailTask.id);
@@ -712,9 +726,9 @@ const TasksPage = () => {
                       <p className="text-xs text-muted-foreground">No attachments</p>
                     ) : (
                       <div className="space-y-1">
-                        {attachments.map((url, i) => (
-                          <a key={i} href={url} target="_blank" rel="noopener noreferrer" className="block text-xs text-primary hover:underline truncate">
-                            {decodeURIComponent(url.split("/").pop() || "")}
+                        {attachments.map((a) => (
+                          <a key={a.id} href={a.url} target="_blank" rel="noopener noreferrer" className="block text-xs text-primary hover:underline truncate">
+                            {a.name}
                           </a>
                         ))}
                       </div>

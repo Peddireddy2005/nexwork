@@ -21,6 +21,7 @@ export function TaskDrawer({ taskId, open, onOpenChange, canEdit, onChange }) {
   const [checklist, setChecklist] = useState([]);
   const [comments, setComments] = useState([]);
   const [attachments, setAttachments] = useState([]);
+  const [signedUrls, setSignedUrls] = useState({});
   const [profiles, setProfiles] = useState({});
   const [newSub, setNewSub] = useState("");
   const [newChk, setNewChk] = useState("");
@@ -69,6 +70,24 @@ export function TaskDrawer({ taskId, open, onOpenChange, canEdit, onChange }) {
       supabase.removeChannel(ch);
     };
   }, [taskId, open]);
+
+  // Resolve signed URLs for private-bucket attachments whenever the list changes
+  useEffect(() => {
+    const resolve = async () => {
+      const updates = {};
+      for (const a of attachments) {
+        if (!signedUrls[a.id]) {
+          const { data } = await supabase.storage.from("task-attachments").createSignedUrl(a.file_url, 3600);
+          if (data?.signedUrl) updates[a.id] = data.signedUrl;
+        }
+      }
+      if (Object.keys(updates).length > 0) {
+        setSignedUrls((prev) => ({ ...prev, ...updates }));
+      }
+    };
+    if (attachments.length > 0) resolve();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [attachments]);
 
   const updateField = async (patch) => {
     if (!task) return;
@@ -172,13 +191,12 @@ export function TaskDrawer({ taskId, open, onOpenChange, canEdit, onChange }) {
     if (!file || !user || !task) return;
     if (file.size > 10 * 1024 * 1024) return toast.error("Max 10MB per file");
     const path = `${task.id}/${Date.now()}-${file.name}`;
-    const { error: upErr } = await supabase.storage.from("task-files").upload(path, file);
+    const { error: upErr } = await supabase.storage.from("task-attachments").upload(path, file);
     if (upErr) return toast.error(upErr.message);
-    const { data: pub } = supabase.storage.from("task-files").getPublicUrl(path);
     const { error } = await supabase.from("task_attachments").insert({
       task_id: task.id,
       file_name: file.name,
-      file_url: pub.publicUrl,
+      file_url: path, // storage path — bucket is private, resolved via signed URL
       file_type: file.type,
       file_size: file.size,
       uploaded_by: user.id,
@@ -190,7 +208,11 @@ export function TaskDrawer({ taskId, open, onOpenChange, canEdit, onChange }) {
   };
 
   const removeAttachment = async (id) => {
+    const target = attachments.find((a) => a.id === id);
     await supabase.from("task_attachments").delete().eq("id", id);
+    if (target?.file_url) {
+      await supabase.storage.from("task-attachments").remove([target.file_url]);
+    }
     load();
   };
 
@@ -382,7 +404,7 @@ export function TaskDrawer({ taskId, open, onOpenChange, canEdit, onChange }) {
                     {attachments.map((a) => (
                       <li key={a.id} className="flex items-center gap-2 group glass-subtle rounded-lg p-2">
                         <Paperclip className="h-3.5 w-3.5 text-muted-foreground" />
-                        <a href={a.file_url} target="_blank" rel="noreferrer" className="text-sm flex-1 hover:underline truncate">
+                        <a href={signedUrls[a.id] || "#"} target="_blank" rel="noreferrer" className="text-sm flex-1 hover:underline truncate">
                           {a.file_name}
                         </a>
                         <span className="text-[10px] text-muted-foreground">{a.file_size ? `${(a.file_size / 1024).toFixed(0)} KB` : ""}</span>

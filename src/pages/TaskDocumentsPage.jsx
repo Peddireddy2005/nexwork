@@ -28,6 +28,7 @@ const TaskDocumentsPage = () => {
   const [projectName, setProjectName] = useState(null);
   const [assigneeIds, setAssigneeIds] = useState([]);
   const [attachments, setAttachments] = useState([]);
+  const [signedUrls, setSignedUrls] = useState({});
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
   const [dragOver, setDragOver] = useState(false);
@@ -61,6 +62,22 @@ const TaskDocumentsPage = () => {
     load();
   }, [load]);
 
+  // Resolve signed URLs for private-bucket attachments
+  useEffect(() => {
+    const resolve = async () => {
+      const updates = {};
+      for (const a of attachments) {
+        if (!signedUrls[a.id]) {
+          const { data } = await supabase.storage.from("task-attachments").createSignedUrl(a.file_url, 3600);
+          if (data?.signedUrl) updates[a.id] = data.signedUrl;
+        }
+      }
+      if (Object.keys(updates).length > 0) setSignedUrls((prev) => ({ ...prev, ...updates }));
+    };
+    if (attachments.length > 0) resolve();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [attachments]);
+
   const handleFiles = async (files) => {
     if (!user || !task) return;
     const arr = Array.from(files);
@@ -73,11 +90,10 @@ const TaskDocumentsPage = () => {
         const path = `${task.id}/${Date.now()}-${file.name.replace(/[^a-zA-Z0-9._-]/g, "_")}`;
         const up = await supabase.storage.from("task-attachments").upload(path, file, { upsert: false });
         if (up.error) throw up.error;
-        const { data: pub } = supabase.storage.from("task-attachments").getPublicUrl(path);
         const ins = await supabase.from("task_attachments").insert({
           task_id: task.id,
           file_name: file.name,
-          file_url: pub.publicUrl,
+          file_url: path, // storage path — bucket is private
           file_type: file.type || null,
           file_size: file.size,
           uploaded_by: user.id,
@@ -109,14 +125,7 @@ const TaskDocumentsPage = () => {
       toast.error(error.message);
       return;
     }
-    try {
-      const url = new URL(a.file_url);
-      const idx = url.pathname.indexOf("/task-attachments/");
-      if (idx >= 0) {
-        const path = decodeURIComponent(url.pathname.slice(idx + "/task-attachments/".length));
-        await supabase.storage.from("task-attachments").remove([path]);
-      }
-    } catch {}
+    await supabase.storage.from("task-attachments").remove([a.file_url]);
     toast.success("Deleted");
     load();
   };
@@ -240,7 +249,7 @@ const TaskDocumentsPage = () => {
                       </p>
                     </div>
                     <Button asChild size="sm" variant="ghost">
-                      <a href={a.file_url} target="_blank" rel="noreferrer" download>
+                      <a href={signedUrls[a.id] || "#"} target="_blank" rel="noreferrer" download>
                         <Download className="h-4 w-4" />
                       </a>
                     </Button>

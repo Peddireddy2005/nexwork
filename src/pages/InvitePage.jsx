@@ -79,10 +79,13 @@ const InvitePage = () => {
       if (roleError) {
         console.error("Role assignment error:", roleError);
         toast.error("Account created but role assignment failed. Contact your admin.");
+        setTimeout(() => navigate("/login"), 1500);
       } else {
-        toast.success("Account created! Check your email to verify, then sign in.");
+        // Email confirmations are disabled workspace-wide (see supabase/config.toml),
+        // so signUp already returns a live, usable session — no email step exists.
+        toast.success("Account created! Taking you to your dashboard…");
+        setTimeout(() => navigate("/dashboard"), 800);
       }
-      setTimeout(() => navigate("/login"), 2000);
     }
 
     setSubmitting(false);

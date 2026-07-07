@@ -5,6 +5,7 @@ import { useBrowserNotifications } from "@/hooks/useBrowserNotifications";
 import { Button } from "@/components/ui/button";
 import { Bell, BellOff } from "lucide-react";
 import { toast } from "sonner";
+import { decryptMessage } from "@/lib/encryption";
 
 /**
  * Global component that listens for new messages across ALL channels
@@ -15,6 +16,7 @@ const GlobalMessageNotifier = () => {
   const { permission, requestPermission, sendNotification } = useBrowserNotifications();
   const [profileNames, setProfileNames] = useState({});
   const [channelNames, setChannelNames] = useState({});
+  const [channelKeys, setChannelKeys] = useState({});
   const channelRef = useRef(null);
 
   useEffect(() => {
@@ -23,7 +25,7 @@ const GlobalMessageNotifier = () => {
     const fetchData = async () => {
       const [profilesRes, channelsRes] = await Promise.all([
         supabase.from("profiles").select("id, full_name"),
-        supabase.from("channels").select("id, name, is_direct"),
+        supabase.from("channels").select("id, name, is_direct, encryption_key"),
       ]);
       const names = {};
       profilesRes.data?.forEach((p) => {
@@ -32,10 +34,13 @@ const GlobalMessageNotifier = () => {
       setProfileNames(names);
 
       const chNames = {};
+      const chKeys = {};
       channelsRes.data?.forEach((c) => {
         chNames[c.id] = c.is_direct ? "Direct Message" : `#${c.name}`;
+        chKeys[c.id] = c.encryption_key || null;
       });
       setChannelNames(chNames);
+      setChannelKeys(chKeys);
     };
     fetchData();
   }, [user]);
@@ -45,15 +50,21 @@ const GlobalMessageNotifier = () => {
 
     const ch = supabase
       .channel("global-message-notifications")
-      .on("postgres_changes", { event: "INSERT", schema: "public", table: "messages" }, (payload) => {
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "messages" }, async (payload) => {
         const msg = payload.new;
         if (msg.user_id === user.id) return;
 
         const senderName = profileNames[msg.user_id] || "Someone";
         const channelName = channelNames[msg.channel_id] || "a channel";
+        const key = channelKeys[msg.channel_id];
+
+        let body = msg.content;
+        if (key) {
+          body = await decryptMessage(msg.content, key);
+        }
 
         sendNotification(`${senderName} in ${channelName}`, {
-          body: msg.content.length > 120 ? msg.content.slice(0, 120) + "…" : msg.content,
+          body: body.length > 120 ? body.slice(0, 120) + "…" : body,
           tag: `msg-${msg.channel_id}`,
         });
       })
@@ -63,7 +74,7 @@ const GlobalMessageNotifier = () => {
     return () => {
       supabase.removeChannel(ch);
     };
-  }, [user, profileNames, channelNames, sendNotification]);
+  }, [user, profileNames, channelNames, channelKeys, sendNotification]);
 
   const handleEnableNotifications = async () => {
     const result = await requestPermission();
