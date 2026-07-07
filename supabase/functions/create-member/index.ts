@@ -60,7 +60,18 @@ Deno.serve(async (req) => {
     }).eq("id", userId);
 
     if (role && role !== "member") {
-      await adminClient.from("user_roles").update({ role }).eq("user_id", userId);
+      // BUGFIX: this used to be `.update({ role }).eq("user_id", userId)`.
+      // That silently assigns nothing if the `on_auth_user_created` trigger
+      // hasn't inserted the default 'member' row yet by the time this runs
+      // (a real possibility under load / replication lag), leaving the new
+      // member stuck on the default role with no error surfaced. Upserting
+      // guarantees the row exists with the requested role either way.
+      const { error: roleUpsertError } = await adminClient
+        .from("user_roles")
+        .upsert({ user_id: userId, role }, { onConflict: "user_id" });
+      if (roleUpsertError) {
+        console.error("Role assignment failed for new member:", roleUpsertError);
+      }
     }
 
     const { data: profileRow } = await adminClient.from("profiles").select("employee_id").eq("id", userId).single();

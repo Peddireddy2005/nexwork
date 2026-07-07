@@ -43,9 +43,13 @@ export function ProjectAIPanel({ projectId, projectName, serviceTypes, onTasksCr
     const data = await run("generate_tasks", {
       clientName: projectName,
       serviceType: serviceTypes.join(", ") || "general",
+      // Pass projectId so tasks are created scoped to this project directly.
+      projectId,
     });
     if (data?.tasks?.length) {
       const ids = data.tasks.map((t) => t.id);
+      // Belt-and-suspenders: also patch project_id client-side in case the
+      // edge function is deployed from an older version that ignores it.
       await supabase.from("tasks").update({ project_id: projectId }).in("id", ids);
       toast.success(`Created ${data.tasks.length} tasks`);
       onTasksCreated?.();
@@ -53,6 +57,9 @@ export function ProjectAIPanel({ projectId, projectName, serviceTypes, onTasksCr
   };
 
   const summarize = async () => {
+    // BUGFIX: previously called without projectId, so the edge function
+    // summarized the current user's tasks across the whole workspace
+    // instead of this project's tasks.
     const data = await run("summarize_project", { projectId });
     if (data) {
       setSummary(data.summary);
@@ -61,7 +68,9 @@ export function ProjectAIPanel({ projectId, projectName, serviceTypes, onTasksCr
   };
 
   const detectDelays = async () => {
-    const data = await run("detect_delays");
+    // BUGFIX: previously called without projectId, so this surfaced overdue
+    // tasks from every project in the workspace, not just this one.
+    const data = await run("detect_delays", { projectId });
     if (data) setDelays(data.tasks || []);
   };
 

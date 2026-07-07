@@ -117,6 +117,9 @@ Deno.serve(async (req) => {
         priority: t.priority || "medium",
         status: "todo",
         created_by: user.id,
+        // Scope the task to the project right away when we have one, instead
+        // of relying on the caller to patch project_id on afterwards.
+        project_id: projectId || null,
         deadline: t.estimated_days
           ? new Date(now.getTime() + t.estimated_days * 86400000).toISOString()
           : null,
@@ -138,10 +141,16 @@ Deno.serve(async (req) => {
     }
 
     if (action === "summarize_project") {
+      // BUGFIX: this used to filter tasks by `created_by: user.id`, which
+      // summarized the CALLER's tasks across the whole workspace instead of
+      // the tasks that belong to THIS project (and missed teammates' tasks
+      // entirely). Scope strictly by project_id.
+      if (!projectId) throw new Error("projectId is required to summarize a project");
+
       const { data: tasks } = await supabase
         .from("tasks")
         .select("title, status, priority, deadline, assigned_to")
-        .eq("created_by", user.id);
+        .eq("project_id", projectId);
 
       const result = await callAI(
         "You are a project management AI. Analyze project data and provide actionable insights.",
@@ -157,9 +166,15 @@ Deno.serve(async (req) => {
     }
 
     if (action === "detect_delays") {
+      // BUGFIX: this previously had no project scoping whatsoever — it
+      // pulled every overdue/at-risk task across ALL projects in the
+      // workspace, regardless of which project's AI panel triggered it.
+      if (!projectId) throw new Error("projectId is required to detect delays");
+
       const { data: tasks } = await supabase
         .from("tasks")
         .select("title, status, priority, deadline")
+        .eq("project_id", projectId)
         .neq("status", "completed");
 
       const overdue = (tasks || []).filter(
@@ -193,6 +208,7 @@ Deno.serve(async (req) => {
         priority: t.priority || "medium",
         status: "todo",
         created_by: user.id,
+        project_id: projectId || null,
         deadline: t.estimated_days
           ? new Date(now.getTime() + t.estimated_days * 86400000).toISOString()
           : null,

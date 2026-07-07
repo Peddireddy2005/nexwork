@@ -73,7 +73,11 @@ Deno.serve(async (req) => {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
-      await adminClient.from("profiles").update({ onboarding_status: "pending" }).eq("id", user_id);
+      // BUGFIX: this used to reset onboarding_status back to "pending" here,
+      // which silently wiped a member's onboarding progress just because
+      // they were deactivated (and reactivating them never restored it).
+      // Deactivation is purely about login access — it should not touch
+      // onboarding state at all.
       return new Response(JSON.stringify({ success: true, action: "deactivated" }), {
         status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
