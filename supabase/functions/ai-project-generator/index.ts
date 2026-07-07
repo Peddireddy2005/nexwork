@@ -27,66 +27,82 @@ Deno.serve(async (req) => {
     if (!OPENAI_API_KEY) throw new Error("OPENAI_API_KEY not configured");
 
     const callAI = async (systemPrompt, userPrompt) => {
-      const resp = await fetch("https://api.openai.com/v1/chat/completions", {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${OPENAI_API_KEY}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          model: "gpt-4o-mini",
-          messages: [
-            { role: "system", content: systemPrompt },
-            { role: "user", content: userPrompt },
-          ],
-          tools: [{
-            type: "function",
-            function: {
-              name: "structured_output",
-              description: "Return structured data",
-              parameters: {
-                type: "object",
-                properties: {
-                  tasks: {
-                    type: "array",
-                    items: {
-                      type: "object",
-                      properties: {
-                        title: { type: "string" },
-                        description: { type: "string" },
-                        priority: { type: "string", enum: ["low", "medium", "high", "urgent"] },
-                        estimated_days: { type: "number" },
-                      },
-                      required: ["title", "priority"],
-                    },
+  const resp = await fetch("https://api.openai.com/v1/chat/completions", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${OPENAI_API_KEY}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      model: "gpt-4o-mini",
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: userPrompt },
+      ],
+      tools: [{
+        type: "function",
+        function: {
+          name: "structured_output",
+          description: "Return structured data",
+          parameters: {
+            type: "object",
+            properties: {
+              tasks: {
+                type: "array",
+                items: {
+                  type: "object",
+                  properties: {
+                    title: { type: "string" },
+                    description: { type: "string" },
+                    priority: { type: "string", enum: ["low", "medium", "high", "urgent"] },
+                    estimated_days: { type: "number" },
                   },
-                  summary: { type: "string" },
-                  suggestions: {
-                    type: "array",
-                    items: { type: "string" },
-                  },
+                  required: ["title", "priority"],
                 },
-                required: ["tasks", "summary"],
+              },
+              summary: { type: "string" },
+              suggestions: {
+                type: "array",
+                items: { type: "string" },
               },
             },
-          }],
-          tool_choice: { type: "function", function: { name: "structured_output" } },
-        }),
-      });
+            required: ["tasks", "summary"],
+          },
+        },
+      }],
+      tool_choice: { type: "function", function: { name: "structured_output" } },
+    }),
+  });
 
-      if (!resp.ok) {
-        const errText = await resp.text();
-        console.error("OpenAI error:", resp.status, errText);
-        throw new Error(`AI request failed: ${resp.status}`);
-      }
+  if (!resp.ok) {
+    const errText = await resp.text();
+    console.error("OpenAI error:", resp.status, errText);
 
-      const data = await resp.json();
-      const toolCall = data.choices?.[0]?.message?.tool_calls?.[0];
-      if (toolCall?.function?.arguments) {
-        return JSON.parse(toolCall.function.arguments);
-      }
-      throw new Error("No structured output from AI");
-    };
+    // Surface OpenAI's actual reason instead of just the status code
+    let detail = errText;
+    try {
+      const parsed = JSON.parse(errText);
+      detail = parsed?.error?.message || errText;
+    } catch {
+      // errText wasn't JSON — use it as-is
+    }
+
+    if (resp.status === 401) {
+      throw new Error(`OpenAI rejected the API key (401): ${detail}. Check the OPENAI_API_KEY secret in Supabase.`);
+    }
+    if (resp.status === 429) {
+      throw new Error(`OpenAI rate-limited or out of quota (429): ${detail}`);
+    }
+    throw new Error(`OpenAI API error (${resp.status}): ${detail}`);
+  }
+
+  const data = await resp.json();
+  const toolCall = data.choices?.[0]?.message?.tool_calls?.[0];
+  if (toolCall?.function?.arguments) {
+    return JSON.parse(toolCall.function.arguments);
+  }
+  throw new Error("No structured output from AI");
+};
 
     if (action === "generate_tasks") {
       const result = await callAI(
