@@ -212,10 +212,13 @@ export default function ProjectsPage() {
             </Button>
           )}
           {canManage && !selectMode && (
-            <Button variant="outline" onClick={() => setShowProjectDialog(true)}>
+            <Button
+              className="bg-success text-success-foreground hover:bg-success/90"
+              onClick={() => setShowProjectDialog(true)}
+            >
               <Plus className="h-4 w-4 mr-1.5" /> New Project
             </Button>
-          )} 
+          )}
           {isAdmin && !selectMode && (
             <Button onClick={() => setShowWizard(true)}>
               <Plus className="h-4 w-4 mr-1.5" /> New Client
@@ -364,6 +367,7 @@ export default function ProjectsPage() {
       )}
 
       <NewClientWizard open={showWizard} onOpenChange={setShowWizard} onCreated={load} />
+      <NewProjectDialog open={showProjectDialog} onOpenChange={setShowProjectDialog} onCreated={load} />
 
       <AlertDialog open={!!deleteTarget} onOpenChange={(o) => !o && setDeleteTarget(null)}>
         <AlertDialogContent>
