@@ -212,10 +212,7 @@ export default function ProjectsPage() {
             </Button>
           )}
           {canManage && !selectMode && (
-            <Button
-              className="bg-success text-success-foreground hover:bg-success/90"
-              onClick={() => setShowProjectDialog(true)}
-            >
+            <Button onClick={() => setShowProjectDialog(true)}>
               <Plus className="h-4 w-4 mr-1.5" /> New Project
             </Button>
           )}
