@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { CommandDialog, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList, CommandSeparator } from "@/components/ui/command";
-import { LayoutDashboard, CheckSquare, MessageSquare, Users, BarChart3, Settings, CalendarClock, FolderKanban, UserCircle } from "lucide-react";
+import { LayoutDashboard, CheckSquare, MessageSquare, Users, BarChart3, Settings, CalendarClock, FolderKanban, UserCircle, ClipboardList } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 
 const navItems = [
@@ -9,6 +9,7 @@ const navItems = [
   { label: "Projects", path: "/projects", icon: FolderKanban, group: "Navigation" },
   { label: "My Tasks", path: "/tasks", icon: CheckSquare, group: "Navigation" },
   { label: "Messages", path: "/messages", icon: MessageSquare, group: "Navigation" },
+  { label: "Onboarding", path: "/onboarding", icon: ClipboardList, group: "Navigation" },
   { label: "Scheduler", path: "/scheduler", icon: CalendarClock, group: "Navigation" },
   { label: "Settings", path: "/settings", icon: Settings, group: "Navigation" },
 ];

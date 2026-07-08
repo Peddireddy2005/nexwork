@@ -12,6 +12,7 @@ import DashboardPage from "./pages/DashboardPage";
 import TasksPage from "./pages/TasksPage";
 import MessagesPage from "./pages/MessagesPage";
 import TeamPage from "./pages/TeamPage";
+import OnboardingPage from "./pages/OnboardingPage";
 import PerformancePage from "./pages/PerformancePage";
 import SchedulerPage from "./pages/SchedulerPage";
 import SettingsPage from "./pages/SettingsPage";
@@ -42,6 +43,7 @@ const AppRoutes = () => {
           <Route path="/tasks" element={<TasksPage />} />
           <Route path="/messages" element={<MessagesPage />} />
           <Route path="/team" element={<TeamPage />} />
+          <Route path="/onboarding" element={<OnboardingPage />} />
           <Route path="/performance" element={<PerformancePage />} />
           <Route path="/scheduler" element={<SchedulerPage />} />
           <Route path="/clients" element={<ClientsPage />} />

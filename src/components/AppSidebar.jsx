@@ -12,6 +12,7 @@ import {
   Wifi,
   UserCircle,
   FolderKanban,
+  ClipboardList,
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { Link, useLocation } from "react-router-dom";
@@ -37,6 +38,7 @@ const mainItems = [
   { title: "Projects", url: "/projects", icon: FolderKanban },
   { title: "My Tasks", url: "/tasks", icon: CheckSquare },
   { title: "Messages", url: "/messages", icon: MessageSquare },
+  { title: "Onboarding", url: "/onboarding", icon: ClipboardList },
   { title: "Scheduler", url: "/scheduler", icon: CalendarClock },
 ];
 
