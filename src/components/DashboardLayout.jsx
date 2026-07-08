@@ -74,7 +74,10 @@ const DashboardLayout = () => {
       clearInterval(interval);
       supabase.from("user_sessions").delete().eq("user_id", user.id).eq("session_id", sessionId);
     };
-  }, [user]);
+    // Depend on user.id (stable) rather than the whole `user` object, which
+    // gets a new reference on every silent auth event (e.g. token refresh)
+    // and would otherwise tear down + recreate the session row constantly.
+  }, [user?.id]);
 
   if (loading) {
     return (

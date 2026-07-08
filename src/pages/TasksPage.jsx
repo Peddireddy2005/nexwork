@@ -198,6 +198,33 @@ const TasksPage = () => {
 
   const canDeleteTask = (task) => isAdminOrManager || task.created_by === user?.id;
 
+  // Shared completion-recording logic used by BOTH the status dropdown
+  // (updateTaskStatus) and the Kanban drag-and-drop (onDragEnd) paths, so
+  // completion history + assignee clearing happens no matter how a task
+  // gets marked completed.
+  const recordTaskCompletion = async (task) => {
+    const assignees = taskAssignees[task.id] || [];
+    const allMembers = task.assigned_to ? [...new Set([task.assigned_to, ...assignees])] : assignees;
+    const isGroup = allMembers.length > 1;
+
+    if (allMembers.length > 0) {
+      const historyRecords = allMembers.map((uid) => ({
+        task_id: task.id,
+        task_title: task.title,
+        task_description: task.description || null,
+        task_priority: task.priority,
+        user_id: uid,
+        was_group_task: isGroup,
+        group_members: allMembers,
+      }));
+      await supabase.from("task_completion_history").insert(historyRecords);
+    }
+
+    await supabase.from("task_assignees").delete().eq("task_id", task.id);
+    await supabase.from("tasks").update({ assigned_to: null }).eq("id", task.id);
+    fetchAllAssignees();
+  };
+
   const updateTaskStatus = async (taskId, newStatus) => {
     const task = tasks.find((t) => t.id === taskId);
     if (!task) return;
@@ -209,26 +236,7 @@ const TasksPage = () => {
     toast.success(`Status updated to ${statusLabels[newStatus]}`);
 
     if (newStatus === "completed") {
-      const assignees = taskAssignees[taskId] || [];
-      const allMembers = task.assigned_to ? [...new Set([task.assigned_to, ...assignees])] : assignees;
-      const isGroup = allMembers.length > 1;
-
-      if (allMembers.length > 0) {
-        const historyRecords = allMembers.map((uid) => ({
-          task_id: taskId,
-          task_title: task.title,
-          task_description: task.description || null,
-          task_priority: task.priority,
-          user_id: uid,
-          was_group_task: isGroup,
-          group_members: allMembers,
-        }));
-        await supabase.from("task_completion_history").insert(historyRecords);
-      }
-
-      await supabase.from("task_assignees").delete().eq("task_id", taskId);
-      await supabase.from("tasks").update({ assigned_to: null }).eq("id", taskId);
-      fetchAllAssignees();
+      await recordTaskCompletion(task);
     }
 
     fetchTasks();
@@ -302,7 +310,13 @@ const TasksPage = () => {
     if (error) {
       toast.error(error.message);
       fetchTasks();
+      return;
     }
+
+    if (newStatus === "completed") {
+      await recordTaskCompletion(task);
+    }
+    fetchTasks();
   };
 
   const getProfileName = (id) => {

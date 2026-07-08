@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -27,6 +27,10 @@ export function NotificationBell() {
     }
   });
 
+  // Reused across notifications instead of creating (and leaking) a new
+  // AudioContext on every single incoming notification.
+  const audioCtxRef = useRef(null);
+
   const updatePrefs = (next) => {
     const merged = { ...prefs, ...next };
     setPrefs(merged);
@@ -50,15 +54,21 @@ export function NotificationBell() {
           setItems((prev) => [n, ...prev].slice(0, 30));
           if (!prefs.muted && prefs.sound) {
             try {
-              const ctx = new (window.AudioContext || window.webkitAudioContext)();
-              const o = ctx.createOscillator();
-              const g = ctx.createGain();
-              o.frequency.value = 880;
-              g.gain.value = 0.05;
-              o.connect(g);
-              g.connect(ctx.destination);
-              o.start();
-              o.stop(ctx.currentTime + 0.08);
+              const Ctx = window.AudioContext || window.webkitAudioContext;
+              if (Ctx) {
+                if (!audioCtxRef.current || audioCtxRef.current.state === "closed") {
+                  audioCtxRef.current = new Ctx();
+                }
+                const ctx = audioCtxRef.current;
+                const o = ctx.createOscillator();
+                const g = ctx.createGain();
+                o.frequency.value = 880;
+                g.gain.value = 0.05;
+                o.connect(g);
+                g.connect(ctx.destination);
+                o.start();
+                o.stop(ctx.currentTime + 0.08);
+              }
             } catch {}
           }
         } else if (payload.eventType === "UPDATE") {
@@ -72,6 +82,8 @@ export function NotificationBell() {
       .subscribe();
     return () => {
       supabase.removeChannel(channel);
+      audioCtxRef.current?.close();
+      audioCtxRef.current = null;
     };
   }, [user, prefs.muted, prefs.sound]);
 
