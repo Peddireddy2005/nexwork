@@ -14,6 +14,7 @@ import { NewClientWizard } from "@/components/clients/NewClientWizard";
 import { exportToCsv } from "@/lib/exportCsv";
 import { toast } from "sonner";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import { NewProjectDialog } from "@/components/projects/NewProjectDialog";
 
 const statusVariants = {
   active: "bg-success/10 text-success border-success/20",
@@ -40,6 +41,7 @@ export default function ProjectsPage() {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [showWizard, setShowWizard] = useState(false);
+  const [showProjectDialog, setShowProjectDialog] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [deleting, setDeleting] = useState(false);
   const [selectMode, setSelectMode] = useState(false);
@@ -209,6 +211,11 @@ export default function ProjectsPage() {
               <Download className="h-4 w-4 mr-1.5" /> Export CSV
             </Button>
           )}
+          {canManage && !selectMode && (
+            <Button variant="outline" onClick={() => setShowProjectDialog(true)}>
+              <Plus className="h-4 w-4 mr-1.5" /> New Project
+            </Button>
+          )} 
           {isAdmin && !selectMode && (
             <Button onClick={() => setShowWizard(true)}>
               <Plus className="h-4 w-4 mr-1.5" /> New Client
